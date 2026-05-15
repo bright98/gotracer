@@ -1,0 +1,18 @@
+# Build output (root-level binary, not the cmd/gotracer source dir)
+/gotracer
+/tmp/
+
+# Test binaries and coverage
+*.test
+*.prof
+coverage.out
+
+# Trace files captured during development (not testdata fixtures)
+/capture_*.out
+
+# IDEs
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
