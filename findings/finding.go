@@ -4,6 +4,7 @@
 package findings
 
 import (
+	"fmt"
 	"time"
 
 	"golang.org/x/exp/trace"
@@ -36,6 +37,22 @@ func (s Severity) String() string {
 // encodes Severity as a string ("INFO", "WARN", "ERROR") rather than an int.
 func (s Severity) MarshalText() ([]byte, error) {
 	return []byte(s.String()), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler so that Severity
+// round-trips correctly through JSON.
+func (s *Severity) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "INFO":
+		*s = Info
+	case "WARN":
+		*s = Warn
+	case "ERROR":
+		*s = Error
+	default:
+		return fmt.Errorf("unknown severity %q", string(text))
+	}
+	return nil
 }
 
 // Finding is a single analysis result produced by a Rule.
