@@ -11,6 +11,209 @@ import (
 	"github.com/bright98/gotracer/report"
 )
 
+// --- HTML tests ---
+
+func sampleFindings() []findings.Finding {
+	return []findings.Finding{
+		{
+			Severity:    findings.Error,
+			Rule:        "GCPauseSpike",
+			Message:     "GC pause of 45ms exceeds Error threshold",
+			Detail:      "A stop-the-world GC pause lasted 45ms.",
+			Suggestion:  "Reduce allocation rate.",
+			Timestamp:   1204 * time.Millisecond,
+		},
+		{
+			Severity:    findings.Warn,
+			Rule:        "ProcessorStarvation",
+			Message:     "P 2 was idle for 12ms",
+			Detail:      "Processor 2 sat idle for 12ms.",
+			Suggestion:  "Check for thread exhaustion.",
+			Timestamp:   850 * time.Millisecond,
+			GoroutineID: 0,
+		},
+		{
+			Severity:    findings.Info,
+			Rule:        "HighSchedulingLatency",
+			Message:     "goroutine 7 waited 2ms",
+			Timestamp:   300 * time.Millisecond,
+			GoroutineID: 7,
+		},
+	}
+}
+
+func sampleMeta() report.Meta {
+	return report.Meta{
+		Source:     "http://localhost:6060/debug/pprof/trace",
+		CapturedAt: time.Date(2026, 5, 20, 14, 0, 0, 0, time.UTC),
+		Duration:   5 * time.Second,
+		RuleCount:  7,
+	}
+}
+
+func TestWriteHTMLDocumentStructure(t *testing.T) {
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, sampleFindings(), sampleMeta()); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{"<!DOCTYPE html>", "<html", "</html>", "<title>", "</head>", "<body>"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q", want)
+		}
+	}
+}
+
+func TestWriteHTMLNoFindingsShowsOKBadge(t *testing.T) {
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, nil, sampleMeta()); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "b-ok") {
+		t.Error("expected green ok badge for no findings")
+	}
+	if strings.Contains(out, "<details>") {
+		t.Error("expected no <details> elements when there are no findings")
+	}
+}
+
+func TestWriteHTMLFindingFieldsPresent(t *testing.T) {
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, sampleFindings(), sampleMeta()); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"GCPauseSpike",
+		"GC pause of 45ms exceeds Error threshold",
+		"A stop-the-world GC pause lasted 45ms.",
+		"Reduce allocation rate.",
+		"ProcessorStarvation",
+		"HighSchedulingLatency",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q", want)
+		}
+	}
+}
+
+func TestWriteHTMLSeverityClasses(t *testing.T) {
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, sampleFindings(), sampleMeta()); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{"sev-error", "sev-warn", "sev-info"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing severity class %q", want)
+		}
+	}
+}
+
+func TestWriteHTMLSeverityCountBadges(t *testing.T) {
+	var buf bytes.Buffer
+	// 1 error, 1 warn, 1 info
+	if err := report.WriteHTML(&buf, sampleFindings(), sampleMeta()); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{"1 ERROR", "1 WARN", "1 INFO"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing count badge %q", want)
+		}
+	}
+}
+
+func TestWriteHTMLMetaFieldsPresent(t *testing.T) {
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, nil, sampleMeta()); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"http://localhost:6060/debug/pprof/trace",
+		"2026-05-20 14:00:00 UTC",
+		"5s",
+		"rules: 7",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing meta field %q", want)
+		}
+	}
+}
+
+func TestWriteHTMLCapturedAtZeroOmitted(t *testing.T) {
+	meta := report.Meta{Source: "trace.out", RuleCount: 7} // zero CapturedAt
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, nil, meta); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	if strings.Contains(buf.String(), "captured:") {
+		t.Error("zero CapturedAt should not render a 'captured:' field")
+	}
+}
+
+func TestWriteHTMLDurationZeroOmitted(t *testing.T) {
+	meta := report.Meta{Source: "trace.out", RuleCount: 7} // zero Duration
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, nil, meta); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	if strings.Contains(buf.String(), "duration:") {
+		t.Error("zero Duration should not render a 'duration:' field")
+	}
+}
+
+func TestWriteHTMLGoroutineIDRenderedWhenNonZero(t *testing.T) {
+	fs := []findings.Finding{
+		{Severity: findings.Info, Rule: "R", Message: "m", GoroutineID: 42, Timestamp: 1},
+	}
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, fs, sampleMeta()); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	if !strings.Contains(buf.String(), "42") {
+		t.Error("expected GoroutineID 42 in output")
+	}
+}
+
+func TestWriteHTMLGoroutineIDOmittedWhenZero(t *testing.T) {
+	fs := []findings.Finding{
+		{Severity: findings.Info, Rule: "R", Message: "m", GoroutineID: 0, Timestamp: 1},
+	}
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, fs, sampleMeta()); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	if strings.Contains(buf.String(), "goroutine") {
+		t.Error("GoroutineID 0 should not render a goroutine row")
+	}
+}
+
+func TestWriteHTMLEscapesSpecialChars(t *testing.T) {
+	fs := []findings.Finding{
+		{
+			Severity: findings.Warn,
+			Rule:     "R",
+			Message:  "m",
+			Detail:   `<script>alert("xss")</script>`,
+			Timestamp: 1,
+		},
+	}
+	var buf bytes.Buffer
+	if err := report.WriteHTML(&buf, fs, sampleMeta()); err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	out := buf.String()
+	if strings.Contains(out, "<script>") {
+		t.Error("raw <script> tag found in output — HTML escaping not working")
+	}
+	if !strings.Contains(out, "&lt;script&gt;") {
+		t.Error("expected &lt;script&gt; escaped entity in output")
+	}
+}
+
 func TestPrintHumanNoFindings(t *testing.T) {
 	var buf bytes.Buffer
 	if err := report.Print(&buf, nil, report.FormatHuman); err != nil {
