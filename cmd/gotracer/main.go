@@ -52,7 +52,10 @@ func runAnalyze(path string, format report.Format) {
 	}
 	defer f.Close()
 
-	a := analyzer.New(rules.NewGCPauseSpike())
+	a := analyzer.New(
+		rules.NewGCPauseSpike(),
+		rules.NewHighSchedulingLatency(),
+	)
 	fs, err := a.Run(f)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
