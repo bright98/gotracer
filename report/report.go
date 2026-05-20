@@ -17,6 +17,7 @@ type Format string
 const (
 	FormatHuman Format = "human" // aligned table, human-readable
 	FormatJSON  Format = "json"  // newline-delimited JSON, one object per finding
+	FormatHTML  Format = "html"  // self-contained HTML report written to a file
 )
 
 // Print writes all findings to w in the requested format.
