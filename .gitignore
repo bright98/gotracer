@@ -14,5 +14,8 @@ coverage.out
 .idea/
 .vscode/
 
+# Claude Code project files (internal dev notes, not public docs)
+.claude/
+
 # macOS
 .DS_Store
