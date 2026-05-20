@@ -20,15 +20,21 @@ go install github.com/bright98/gotracer/cmd/gotracer@latest
 
 Requires Go 1.22 or later (uses the `golang.org/x/exp/trace` structured trace reader).
 
+```
+$ gotracer --version
+gotracer version v0.1.0
+```
+
 ## Commands
 
 ### `analyze` — analyze a trace file
 
 ```
-gotracer analyze <file> [--format human|json]
+gotracer analyze <file> [--format human|json|html] [--output <file>]
 ```
 
 Reads a Go execution trace from disk, runs all rules, and prints findings to stdout.
+With `--format html`, writes a self-contained HTML report to a file instead.
 
 ```bash
 # capture a trace from your running service, then analyze it
@@ -37,6 +43,12 @@ gotracer analyze trace.out
 
 # machine-readable output for scripts or CI
 gotracer analyze trace.out --format json
+
+# HTML report — auto-generates gotracer_<timestamp>.html, prints path to stdout
+gotracer analyze trace.out --format html
+
+# HTML report to a specific file, open immediately
+open $(gotracer analyze trace.out --format html --output report.html)
 ```
 
 ### `capture` — capture and analyze in one step
