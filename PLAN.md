@@ -33,8 +33,8 @@ Each finding teaches one new Go runtime concept.
 | 2 | `HighSchedulingLatency` | GMP scheduler, run queue, Runnable→Running delay | ✅ done |
 | 3 | `BlockedOnSyscall` | syscall handling, M thread stealing, netpoller | 🔄 in progress |
 | 4 | `MutexContention` | sync primitives in the runtime, block reasons | — |
-| 5 | `GoroutineLeakGrowth` | goroutine lifecycle, EventMetric, count over time | — |
-| 6 | `HeapGrowthSpike` | heap metrics, GC pressure, GOGC/GOMEMLIMIT | — |
+| 5 | `GoroutineLeakGrowth` | goroutine lifecycle, EventMetric, count over time | ✅ done |
+| 6 | `HeapGrowthSpike` | heap metrics, GC pressure, GOGC/GOMEMLIMIT | ✅ done |
 | 7 | `ProcessorStarvation` | P idle while work exists, CGo, thread exhaustion | — |
 
 ---
