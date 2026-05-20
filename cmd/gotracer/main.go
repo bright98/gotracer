@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,8 +20,9 @@ import (
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "gotracer",
-		Short: "analyze Go execution traces and emit structured findings",
+		Use:     "gotracer",
+		Short:   "analyze Go execution traces and emit structured findings",
+		Version: buildVersion(),
 	}
 	rootCmd.AddCommand(newAnalyzeCmd())
 	rootCmd.AddCommand(newCaptureCmd())
@@ -27,6 +30,13 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(2)
 	}
+}
+
+func buildVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
 }
 
 func allRules() []findings.Rule {
@@ -44,22 +54,23 @@ func allRules() []findings.Rule {
 // --- analyze ---
 
 func newAnalyzeCmd() *cobra.Command {
-	var format string
+	var format, output string
 
 	cmd := &cobra.Command{
 		Use:   "analyze <file>",
 		Short: "analyze a Go execution trace file and report findings",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runAnalyze(args[0], report.Format(format))
+			runAnalyze(args[0], report.Format(format), output)
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&format, "format", "f", "human", "output format: human or json")
+	cmd.Flags().StringVarP(&format, "format", "f", "human", "output format: human, json, or html")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "output file (default: stdout for human/json, gotracer_<timestamp>.html for html)")
 	return cmd
 }
 
-func runAnalyze(path string, format report.Format) {
+func runAnalyze(path string, format report.Format, output string) {
 	f, err := os.Open(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
@@ -67,16 +78,46 @@ func runAnalyze(path string, format report.Format) {
 	}
 	defer f.Close()
 
-	a := analyzer.New(allRules()...)
+	rs := allRules()
+	a := analyzer.New(rs...)
 	fs, err := a.Run(f)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
 		os.Exit(2)
 	}
 
-	if err := report.Print(os.Stdout, fs, format); err != nil {
-		fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
-		os.Exit(2)
+	if format == report.FormatHTML {
+		if output == "" {
+			output = fmt.Sprintf("gotracer_%s.html", time.Now().UTC().Format("20060102_150405"))
+		}
+		outFile, err := os.Create(output)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
+			os.Exit(2)
+		}
+		defer outFile.Close()
+		meta := report.Meta{Source: path, RuleCount: len(rs)}
+		if err := report.WriteHTML(outFile, fs, meta); err != nil {
+			fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
+			os.Exit(2)
+		}
+		fmt.Println(output)
+	} else {
+		var w io.Writer = os.Stdout
+		if output != "" {
+			outFile, err := os.Create(output)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
+				os.Exit(2)
+			}
+			defer outFile.Close()
+			w = outFile
+			defer fmt.Println(output)
+		}
+		if err := report.Print(w, fs, format); err != nil {
+			fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
+			os.Exit(2)
+		}
 	}
 
 	for _, finding := range fs {
