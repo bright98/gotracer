@@ -9,6 +9,7 @@ import (
 	"github.com/bright98/gotracer/analyzer"
 	"github.com/bright98/gotracer/findings"
 	"github.com/bright98/gotracer/report"
+	"github.com/bright98/gotracer/rules"
 )
 
 func main() {
@@ -51,8 +52,7 @@ func runAnalyze(path string, format report.Format) {
 	}
 	defer f.Close()
 
-	// No rules registered yet — Phase 2 adds the first rule (GCPauseSpike).
-	a := analyzer.New()
+	a := analyzer.New(rules.NewGCPauseSpike())
 	fs, err := a.Run(f)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
