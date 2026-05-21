@@ -25,8 +25,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// workloadCtx is cancelled after the trace is captured so all workload
+	// goroutines stop and the process exits cleanly.
+	workloadCtx, stopWorkloads := context.WithCancel(context.Background())
+	defer stopWorkloads()
+
 	startPprof()
-	startWorkloads()
+	startWorkloads(workloadCtx)
 
 	fmt.Printf("workloads running — warming up for %s...\n", warmupDuration)
 	time.Sleep(warmupDuration)
@@ -87,6 +92,8 @@ func main() {
 		})
 	})
 	fmt.Printf("html  → %s\n", htmlPath)
+
+	stopWorkloads() // signal all workload goroutines to exit
 }
 
 // demoRules returns all 7 rules with thresholds tuned to fire reliably in a

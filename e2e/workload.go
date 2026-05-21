@@ -7,6 +7,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -21,26 +22,7 @@ const pprofAddr = "localhost:6061"
 // heapSink keeps allocations alive so the GC sees genuine heap growth.
 var heapSink [][]byte
 
-func startPprof() {
-	go func() {
-		if err := http.ListenAndServe(pprofAddr, nil); err != nil {
-			fmt.Fprintf(os.Stderr, "pprof: %v\n", err)
-			os.Exit(1)
-		}
-	}()
-}
-
-func startWorkloads() {
-	go workloadGCPressure()
-	go workloadMutexContention()
-	go workloadSchedulerStress()
-	go workloadSyscallLoad()
-	go workloadGoroutineGrowth()
-	go workloadHeapGrowth()
-}
-
-// gcLiveSink keeps a pointer-rich tree alive so the GC must scan many
-// pointers during the mark phase, extending STW pause duration.
+// gcLiveSink keeps a pointer-rich tree alive so GC must scan many pointers.
 var gcLiveSink *gcNode
 
 type gcNode struct {
@@ -59,41 +41,75 @@ func buildGCTree(depth int) *gcNode {
 	return n
 }
 
-// workloadGCPressure keeps a large pointer-rich object graph alive and forces
-// frequent GC cycles. The live set forces GC to scan many pointers, extending
-// STW mark-termination pauses.
-func workloadGCPressure() {
+func startPprof() {
+	go func() {
+		if err := http.ListenAndServe(pprofAddr, nil); err != nil {
+			fmt.Fprintf(os.Stderr, "pprof: %v\n", err)
+			os.Exit(1)
+		}
+	}()
+}
+
+// startWorkloads starts all synthetic load goroutines. They all stop when ctx
+// is cancelled, so the process exits cleanly after the trace is captured.
+func startWorkloads(ctx context.Context) {
+	go workloadGCPressure(ctx)
+	go workloadMutexContention(ctx)
+	go workloadSchedulerStress(ctx)
+	go workloadSyscallLoad(ctx)
+	go workloadGoroutineGrowth(ctx)
+	go workloadHeapGrowth(ctx)
+}
+
+// workloadGCPressure allocates and discards large objects to force frequent
+// GC cycles. A large pointer-rich live set makes STW mark pauses longer.
+func workloadGCPressure(ctx context.Context) {
 	gcLiveSink = buildGCTree(8) // 4^8 = 65 536 nodes — large pointer graph
+	defer func() { gcLiveSink = nil }()
 	for {
 		for i := 0; i < 200; i++ {
-			_ = make([]byte, 256*1024) // 256 KB short-lived garbage
+			_ = make([]byte, 256*1024)
 		}
 		runtime.GC()
-		time.Sleep(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
 }
 
 // workloadMutexContention puts 20 goroutines in contention over a single mutex
-// that is held for 5 ms at a time, producing long wait times.
-func workloadMutexContention() {
+// held for 5 ms at a time, producing long wait times.
+func workloadMutexContention(ctx context.Context) {
 	var mu sync.Mutex
 	for i := 0; i < 20; i++ {
 		go func() {
 			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 				mu.Lock()
-				time.Sleep(5 * time.Millisecond) // hold the lock
+				time.Sleep(5 * time.Millisecond)
 				mu.Unlock()
-				time.Sleep(2 * time.Millisecond) // brief backoff
+				time.Sleep(2 * time.Millisecond)
 			}
 		}()
 	}
-	select {} // keep the goroutine alive
+	<-ctx.Done()
 }
 
 // workloadSchedulerStress spawns GOMAXPROCS×8 CPU-bound goroutines in bursts
 // so goroutines queue up waiting for a P.
-func workloadSchedulerStress() {
+func workloadSchedulerStress(ctx context.Context) {
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		n := runtime.GOMAXPROCS(0) * 8
 		var wg sync.WaitGroup
 		wg.Add(n)
@@ -108,16 +124,18 @@ func workloadSchedulerStress() {
 			}()
 		}
 		wg.Wait()
-		// Idle period between bursts — Ps go idle here, triggering ProcessorStarvation.
-		time.Sleep(80 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(80 * time.Millisecond):
+		}
 	}
 }
 
-// workloadSyscallLoad calls f.Sync() (fsync) in a tight loop. fsync flushes
-// dirty pages to physical disk and typically takes 1–10 ms on SSD — long
-// enough to hold an OS thread and show up as a genuine GoSyscall event.
-// Simple file writes complete in microseconds and are too fast to be meaningful.
-func workloadSyscallLoad() {
+// workloadSyscallLoad calls f.Sync() (fsync) in a loop. fsync flushes dirty
+// pages to physical disk and typically takes 3–10 ms on SSD — long enough to
+// hold an OS thread and produce a genuine GoSyscall event.
+func workloadSyscallLoad(ctx context.Context) {
 	for i := 0; i < 8; i++ {
 		go func() {
 			f, err := os.CreateTemp("", "gotracer-e2e-*")
@@ -126,35 +144,52 @@ func workloadSyscallLoad() {
 			}
 			defer os.Remove(f.Name())
 			defer f.Close()
-			payload := make([]byte, 64*1024) // 64 KB written before each sync
+			payload := make([]byte, 64*1024)
 			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 				f.Write(payload)
-				f.Sync() // blocks the OS thread until pages are flushed to disk
+				f.Sync()
 			}
 		}()
 	}
 }
 
 // workloadGoroutineGrowth continuously spawns goroutines that outlive the
-// trace window, so the net goroutine count grows monotonically during the trace.
-func workloadGoroutineGrowth() {
+// trace window so the net goroutine count grows monotonically during the trace.
+func workloadGoroutineGrowth(ctx context.Context) {
 	for {
-		go func() {
-			time.Sleep(60 * time.Second) // outlives any capture window
-		}()
-		time.Sleep(40 * time.Millisecond) // ~25 new goroutines per second
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(40 * time.Millisecond):
+			go func() {
+				select {
+				case <-ctx.Done():
+				case <-time.After(60 * time.Second):
+				}
+			}()
+		}
 	}
 }
 
 // workloadHeapGrowth appends large slices to a package-level sink so the GC
 // cannot reclaim them, producing a steady heap growth signal.
-func workloadHeapGrowth() {
+func workloadHeapGrowth(ctx context.Context) {
+	defer func() { heapSink = nil }()
 	for {
-		chunk := make([]byte, 5*1024*1024) // 5 MB per tick
+		chunk := make([]byte, 5*1024*1024)
 		heapSink = append(heapSink, chunk)
-		if len(heapSink) > 30 { // cap at ~150 MB to avoid OOM
+		if len(heapSink) > 30 {
 			heapSink = heapSink[1:]
 		}
-		time.Sleep(200 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
 }
