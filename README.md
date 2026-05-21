@@ -1,5 +1,7 @@
 # gotracer
 
+[![CI](https://github.com/bright98/gotracer/actions/workflows/ci.yml/badge.svg)](https://github.com/bright98/gotracer/actions/workflows/ci.yml)
+
 `go tool trace` shows you a browser UI. gotracer gives you structured findings you can act on — in the terminal, in CI, or as an HTML report.
 
 ```
