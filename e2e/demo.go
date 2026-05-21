@@ -97,7 +97,7 @@ func main() {
 	stopWorkloads() // signal all workload goroutines to exit
 }
 
-// demoRules returns all 7 rules with thresholds tuned to fire reliably in a
+// demoRules returns all 8 rules with thresholds tuned to fire reliably in a
 // short demo trace. The defaults in the rules themselves are
 // production-appropriate; these are only for the demo.
 func demoRules() []findings.Rule {
@@ -123,7 +123,10 @@ func demoRules() []findings.Rule {
 	proc := rules.NewProcessorStarvation()
 	proc.WarnThreshold = 5 * time.Millisecond // filters sub-ms noise; 80ms burst gaps still fire
 
-	return []findings.Rule{gc, sched, block, mutex, leak, heap, proc}
+	assist := rules.NewGCAssist()
+	assist.WarnThreshold = 50 * time.Microsecond // very low: catch any assist wait with GOGC=1
+
+	return []findings.Rule{gc, sched, block, mutex, leak, heap, proc, assist}
 }
 
 func writeReport(path string, fn func(*os.File) error) {

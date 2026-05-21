@@ -106,6 +106,7 @@ Exit code 1 makes CI gates straightforward:
 | [`GoroutineLeakGrowth`](docs/rules/GoroutineLeakGrowth.md) | Net goroutine count growing across the trace window | Warn +100 or 25% · Error +500 or 100% |
 | [`HeapGrowthSpike`](docs/rules/HeapGrowthSpike.md) | Heap growing too fast (absolute or rate) | Warn 100 MB or 50 MB/s · Error 500 MB or 200 MB/s |
 | [`ProcessorStarvation`](docs/rules/ProcessorStarvation.md) | Processors (Ps) sitting idle while work exists | Warn 10ms · Error 100ms |
+| [`GCAssist`](docs/rules/GCAssist.md) | Goroutines blocking while waiting to do GC mark work | Warn 1ms · Error 10ms |
 
 Each rule's thresholds are configurable when using gotracer as a library.
 

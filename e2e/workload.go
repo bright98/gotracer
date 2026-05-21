@@ -13,6 +13,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -59,6 +60,7 @@ func startWorkloads(ctx context.Context) {
 	go workloadSyscallLoad(ctx)
 	go workloadGoroutineGrowth(ctx)
 	go workloadHeapGrowth(ctx)
+	go workloadGCAssist(ctx)
 }
 
 // workloadGCPressure allocates and discards large objects to force frequent
@@ -195,4 +197,30 @@ func workloadHeapGrowth(ctx context.Context) {
 		case <-time.After(200 * time.Millisecond):
 		}
 	}
+}
+
+// workloadGCAssist lowers GOGC to 1% so GC triggers after every 1% heap
+// growth, then spawns goroutines that allocate at high rate. This combination
+// reliably causes goroutines to block in "GC mark assist wait for work".
+func workloadGCAssist(ctx context.Context) {
+	old := debug.SetGCPercent(1)
+	defer debug.SetGCPercent(old)
+
+	n := runtime.GOMAXPROCS(0) * 2
+	for i := 0; i < n; i++ {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					for j := 0; j < 500; j++ {
+						_ = make([]byte, 32*1024)
+					}
+					runtime.Gosched()
+				}
+			}
+		}()
+	}
+	<-ctx.Done()
 }

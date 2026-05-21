@@ -55,6 +55,7 @@ func allRules() []findings.Rule {
 		rules.NewGoroutineLeakGrowth(),
 		rules.NewHeapGrowthSpike(),
 		rules.NewProcessorStarvation(),
+		rules.NewGCAssist(),
 	}
 }
 
