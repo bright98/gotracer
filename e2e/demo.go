@@ -50,13 +50,14 @@ func main() {
 
 	rs := demoRules()
 	a := analyzer.New(rs...)
-	fs, err := a.Run(rc)
+	raw, err := a.Run(rc)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "analyze: %v\n", err)
 		os.Exit(1)
 	}
+	fs := findings.Deduplicate(raw)
 
-	fmt.Printf("found %d finding(s)\n\n", len(fs))
+	fmt.Printf("found %d unique finding(s) (from %d total events)\n\n", len(fs), len(raw))
 
 	// ── human → stdout (capped to keep terminal readable) ───────────────────
 	const terminalCap = 40

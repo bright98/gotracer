@@ -12,6 +12,7 @@ import (
 	"github.com/bright98/gotracer/findings"
 )
 
+
 // Format controls the output encoding.
 type Format string
 
@@ -41,11 +42,15 @@ func printHuman(w io.Writer, fs []findings.Finding) error {
 	fmt.Fprintln(tw, "SEVERITY\tRULE\tTIMESTAMP\tMESSAGE")
 	fmt.Fprintln(tw, "--------\t----\t---------\t-------")
 	for _, f := range fs {
+		msg := f.Message
+		if f.Count > 1 {
+			msg = fmt.Sprintf("[%d×] %s", f.Count, msg)
+		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
 			f.Severity,
 			f.Rule,
 			f.Timestamp.Round(time.Millisecond),
-			f.Message,
+			msg,
 		)
 		if frame := topUserFrame(f.Stack); frame != "" {
 			fmt.Fprintf(tw, "\t\t\t  at %s\n", frame)
@@ -75,20 +80,7 @@ func topUserFrame(stack []string) string {
 	return ""
 }
 
-// isUserFrame reports whether a function name belongs to user code rather than
-// the Go runtime or standard library.
-func isUserFrame(funcName string) bool {
-	runtimePrefixes := []string{
-		"runtime.", "runtime/", "sync.", "syscall.", "os.", "io.",
-		"internal/", "reflect.", "encoding/", "fmt.", "net/",
-	}
-	for _, pfx := range runtimePrefixes {
-		if strings.HasPrefix(funcName, pfx) {
-			return false
-		}
-	}
-	return funcName != ""
-}
+func isUserFrame(funcName string) bool { return findings.IsUserFrame(funcName) }
 
 func printJSON(w io.Writer, fs []findings.Finding) error {
 	enc := json.NewEncoder(w)

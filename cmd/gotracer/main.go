@@ -92,6 +92,7 @@ func runAnalyze(path string, format report.Format, output string) {
 		fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
 		os.Exit(2)
 	}
+	fs = findings.Deduplicate(fs)
 
 	if format == report.FormatHTML {
 		if output == "" {
@@ -181,6 +182,7 @@ func runCapture(rawURL string, duration time.Duration, format report.Format, out
 		fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
 		os.Exit(2)
 	}
+	fs = findings.Deduplicate(fs)
 
 	if output == "" {
 		ext := "html"

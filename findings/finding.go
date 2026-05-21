@@ -65,6 +65,7 @@ type Finding struct {
 	Timestamp   time.Duration `json:"timestamp_ns"`
 	GoroutineID uint64        `json:"goroutine_id,omitempty"` // 0 = process-level finding
 	Stack       []string      `json:"stack,omitempty"`
+	Count       int           `json:"count,omitempty"` // >1 when this finding represents multiple occurrences
 }
 
 // Rule is the interface every analysis rule must implement.

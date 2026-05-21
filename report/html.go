@@ -90,7 +90,8 @@ details[open] .expand-icon{transform:rotate(90deg)}
 .sev-error{background:#3d1217;color:#f85149;border:1px solid #6e1e24}
 .sev-warn{background:#272115;color:#e3b341;border:1px solid #5a4313}
 .sev-info{background:#0d2137;color:#58a6ff;border:1px solid #1a4a7a}
-.rule{color:#79c0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rule{color:#79c0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:.4rem}
+.count{font-size:.75rem;background:#1c2b3a;color:#58a6ff;border:1px solid #1a4a7a;border-radius:3px;padding:.1rem .35rem;white-space:nowrap;flex-shrink:0}
 .ts{color:#8b949e;font-size:.85rem}
 .msg{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .body{padding:.85rem 1.25rem;background:#0d1117}
@@ -119,7 +120,7 @@ details[open] .expand-icon{transform:rotate(90deg)}
   {{range .Findings}}<details>
     <summary>
       <span class="sev sev-{{sevClass .Severity}}">{{.Severity}}</span>
-      <span class="rule">{{.Rule}}</span>
+      <span class="rule">{{.Rule}}{{if gt .Count 1}}<span class="count">{{.Count}}×</span>{{end}}</span>
       <span class="ts">{{roundDur .Timestamp}}</span>
       <span class="msg">{{.Message}}</span>
       <span class="expand-icon">▶</span>
