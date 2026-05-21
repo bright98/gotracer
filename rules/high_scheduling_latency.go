@@ -31,12 +31,12 @@ type HighSchedulingLatency struct {
 	WarnThreshold  time.Duration
 	ErrorThreshold time.Duration
 
-	// runnableSince maps each goroutine that entered the Runnable state to
-	// the time it did so. The entry is deleted the moment we see that
-	// goroutine transition to Running, so the map never holds stale work.
+	// runnableSince maps each goroutine that entered the Runnable state to the
+	// time and stack recorded at that transition. Entries are deleted when the
+	// goroutine transitions to Running.
 	//
 	// TODO: bound map size for very long traces with goroutine leaks.
-	runnableSince map[trace.GoID]trace.Time
+	runnableSince map[trace.GoID]goEntry
 }
 
 // NewHighSchedulingLatency creates a HighSchedulingLatency rule with default
@@ -45,7 +45,7 @@ func NewHighSchedulingLatency() *HighSchedulingLatency {
 	return &HighSchedulingLatency{
 		WarnThreshold:  DefaultSchedulingWarnThreshold,
 		ErrorThreshold: DefaultSchedulingErrorThreshold,
-		runnableSince:  make(map[trace.GoID]trace.Time),
+		runnableSince:  make(map[trace.GoID]goEntry),
 	}
 }
 
@@ -74,14 +74,14 @@ func (r *HighSchedulingLatency) Process(ev trace.Event) []findings.Finding {
 		// from a known state. GoUndetermined means the goroutine was already
 		// runnable when the trace started — we have no start time for it.
 		if from != trace.GoUndetermined {
-			r.runnableSince[id] = ev.Time()
+			r.runnableSince[id] = goEntry{at: ev.Time(), stack: extractStack(ev)}
 		}
 
 	case from == trace.GoRunnable && to == trace.GoRunning:
-		if since, ok := r.runnableSince[id]; ok {
-			latency := ev.Time().Sub(since)
+		if entry, ok := r.runnableSince[id]; ok {
+			latency := ev.Time().Sub(entry.at)
 			delete(r.runnableSince, id) // release the slot immediately
-			return r.evaluate(id, latency, time.Duration(since))
+			return r.evaluate(id, latency, time.Duration(entry.at), entry.stack)
 		}
 	}
 
@@ -92,7 +92,7 @@ func (r *HighSchedulingLatency) Process(ev trace.Event) []findings.Finding {
 // end never ran during the trace window; we cannot compute their latency.
 func (r *HighSchedulingLatency) Flush() []findings.Finding { return nil }
 
-func (r *HighSchedulingLatency) evaluate(id trace.GoID, latency, timestamp time.Duration) []findings.Finding {
+func (r *HighSchedulingLatency) evaluate(id trace.GoID, latency, timestamp time.Duration, stack []string) []findings.Finding {
 	var sev findings.Severity
 	var threshold time.Duration
 
@@ -116,5 +116,6 @@ func (r *HighSchedulingLatency) evaluate(id trace.GoID, latency, timestamp time.
 		Suggestion:  "Check if GOMAXPROCS matches available CPU cores. Look for long-running CPU-bound goroutines that starve the scheduler, or CGo calls that hold OS threads.",
 		Timestamp:   timestamp,
 		GoroutineID: uint64(id),
+		Stack:       stack,
 	}}
 }

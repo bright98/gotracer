@@ -37,10 +37,9 @@ type BlockedOnSyscall struct {
 	WarnThreshold  time.Duration
 	ErrorThreshold time.Duration
 
-	// syscallSince maps each goroutine that entered GoSyscall to the time it
-	// did so. The entry is deleted when the goroutine leaves GoSyscall, so the
-	// map never holds stale entries.
-	syscallSince map[trace.GoID]trace.Time
+	// syscallSince maps each goroutine that entered GoSyscall to the time and
+	// call stack recorded at that entry. Entries are deleted on exit.
+	syscallSince map[trace.GoID]goEntry
 }
 
 // NewBlockedOnSyscall creates a BlockedOnSyscall rule with default thresholds.
@@ -48,7 +47,7 @@ func NewBlockedOnSyscall() *BlockedOnSyscall {
 	return &BlockedOnSyscall{
 		WarnThreshold:  DefaultSyscallWarnThreshold,
 		ErrorThreshold: DefaultSyscallErrorThreshold,
-		syscallSince:   make(map[trace.GoID]trace.Time),
+		syscallSince:   make(map[trace.GoID]goEntry),
 	}
 }
 
@@ -77,17 +76,17 @@ func (r *BlockedOnSyscall) Process(ev trace.Event) []findings.Finding {
 		// state. GoUndetermined means the goroutine was already in a syscall
 		// when the trace started — we have no start time for it.
 		if from != trace.GoUndetermined {
-			r.syscallSince[id] = ev.Time()
+			r.syscallSince[id] = goEntry{at: ev.Time(), stack: extractStack(ev)}
 		}
 
 	case from == trace.GoSyscall:
 		// Both GoSyscall→GoRunning and GoSyscall→GoRunnable mean the syscall
 		// is done; the difference is just whether the runtime found a free P
 		// immediately or had to re-queue the goroutine.
-		if since, ok := r.syscallSince[id]; ok {
-			duration := ev.Time().Sub(since)
+		if entry, ok := r.syscallSince[id]; ok {
+			duration := ev.Time().Sub(entry.at)
 			delete(r.syscallSince, id)
-			return r.evaluate(id, duration, time.Duration(since))
+			return r.evaluate(id, duration, time.Duration(entry.at), entry.stack)
 		}
 	}
 
@@ -98,7 +97,7 @@ func (r *BlockedOnSyscall) Process(ev trace.Event) []findings.Finding {
 // has not returned yet; without a complete duration we emit nothing.
 func (r *BlockedOnSyscall) Flush() []findings.Finding { return nil }
 
-func (r *BlockedOnSyscall) evaluate(id trace.GoID, duration, timestamp time.Duration) []findings.Finding {
+func (r *BlockedOnSyscall) evaluate(id trace.GoID, duration, timestamp time.Duration, stack []string) []findings.Finding {
 	var sev findings.Severity
 	var threshold time.Duration
 
@@ -122,5 +121,6 @@ func (r *BlockedOnSyscall) evaluate(id trace.GoID, duration, timestamp time.Dura
 		Suggestion:  "Check for slow disk I/O, network reads without deadlines, or blocking CGo calls. Add context deadlines to I/O operations and prefer non-blocking alternatives.",
 		Timestamp:   timestamp,
 		GoroutineID: uint64(id),
+		Stack:       stack,
 	}}
 }

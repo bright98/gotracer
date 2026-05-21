@@ -81,9 +81,11 @@ h1{font-size:1.4rem;color:#e6edf3;margin-bottom:.75rem}
 .b-ok{background:#0d2b1a;color:#3fb950;border:1px solid #1a5a30}
 .findings{display:flex;flex-direction:column;gap:.35rem}
 details{border-radius:6px;overflow:hidden;border:1px solid #30363d}
-summary{padding:.5rem 1rem;cursor:pointer;display:grid;grid-template-columns:5.5rem 16rem 7rem 1fr;gap:.75rem;align-items:center;background:#161b22;user-select:none;list-style:none}
+summary{padding:.5rem 1rem;cursor:pointer;display:grid;grid-template-columns:5.5rem 16rem 7rem 1fr 1.2rem;gap:.75rem;align-items:center;background:#161b22;user-select:none;list-style:none}
 summary::-webkit-details-marker{display:none}
 details[open] summary{background:#1c2128;border-bottom:1px solid #30363d}
+.expand-icon{color:#8b949e;font-size:.8rem;transition:transform .15s}
+details[open] .expand-icon{transform:rotate(90deg)}
 .sev{font-weight:700;font-size:.78rem;text-align:center;padding:.15rem .3rem;border-radius:3px;letter-spacing:.04em}
 .sev-error{background:#3d1217;color:#f85149;border:1px solid #6e1e24}
 .sev-warn{background:#272115;color:#e3b341;border:1px solid #5a4313}
@@ -95,6 +97,7 @@ details[open] summary{background:#1c2128;border-bottom:1px solid #30363d}
 .body-row{display:flex;gap:.75rem;margin-bottom:.55rem}
 .body-label{color:#8b949e;width:7rem;flex-shrink:0;font-size:.85rem;padding-top:.05rem}
 .body-val{color:#c9d1d9;font-size:.85rem;white-space:pre-wrap;word-break:break-word}
+.stack-trace{font-family:inherit;font-size:.8rem;color:#a5d6ff;background:#010409;border:1px solid #30363d;border-radius:4px;padding:.6rem .85rem;margin:0;overflow-x:auto;white-space:pre}
 </style>
 </head>
 <body>
@@ -119,6 +122,7 @@ details[open] summary{background:#1c2128;border-bottom:1px solid #30363d}
       <span class="rule">{{.Rule}}</span>
       <span class="ts">{{roundDur .Timestamp}}</span>
       <span class="msg">{{.Message}}</span>
+      <span class="expand-icon">▶</span>
     </summary>
     <div class="body">
       {{if .Detail}}<div class="body-row">
@@ -132,6 +136,11 @@ details[open] summary{background:#1c2128;border-bottom:1px solid #30363d}
       {{if .GoroutineID}}<div class="body-row">
         <span class="body-label">goroutine</span>
         <span class="body-val">{{.GoroutineID}}</span>
+      </div>{{end}}
+      {{if .Stack}}<div class="body-row">
+        <span class="body-label">stack</span>
+        <pre class="stack-trace">{{range .Stack}}{{.}}
+{{end}}</pre>
       </div>{{end}}
     </div>
   </details>

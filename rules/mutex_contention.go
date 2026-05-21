@@ -38,8 +38,9 @@ type MutexContention struct {
 	ErrorThreshold time.Duration
 
 	// waitingSince maps each goroutine that entered GoWaiting on a sync
-	// primitive to the time it did so. Entries are deleted on GoRunnable.
-	waitingSince map[trace.GoID]trace.Time
+	// primitive to the time and stack recorded at that entry. Entries are
+	// deleted on GoRunnable.
+	waitingSince map[trace.GoID]goEntry
 }
 
 // NewMutexContention creates a MutexContention rule with default thresholds.
@@ -47,7 +48,7 @@ func NewMutexContention() *MutexContention {
 	return &MutexContention{
 		WarnThreshold:  DefaultMutexWarnThreshold,
 		ErrorThreshold: DefaultMutexErrorThreshold,
-		waitingSince:   make(map[trace.GoID]trace.Time),
+		waitingSince:   make(map[trace.GoID]goEntry),
 	}
 }
 
@@ -75,17 +76,17 @@ func (r *MutexContention) Process(ev trace.Event) []findings.Finding {
 		// GoUndetermined means the goroutine was already waiting at trace start
 		// — we have no start time for it.
 		if from != trace.GoUndetermined {
-			r.waitingSince[id] = ev.Time()
+			r.waitingSince[id] = goEntry{at: ev.Time(), stack: extractStack(ev)}
 		}
 
 	case from == trace.GoWaiting:
 		// The goroutine was woken by Unlock(). We only have an entry if we
 		// previously saw it block on a sync primitive, so non-mutex waits
 		// (channel, sleep, etc.) are naturally ignored.
-		if since, ok := r.waitingSince[id]; ok {
-			duration := ev.Time().Sub(since)
+		if entry, ok := r.waitingSince[id]; ok {
+			duration := ev.Time().Sub(entry.at)
 			delete(r.waitingSince, id)
-			return r.evaluate(id, duration, time.Duration(since))
+			return r.evaluate(id, duration, time.Duration(entry.at), entry.stack)
 		}
 	}
 
@@ -96,7 +97,7 @@ func (r *MutexContention) Process(ev trace.Event) []findings.Finding {
 // has not been woken yet; without a complete duration we emit nothing.
 func (r *MutexContention) Flush() []findings.Finding { return nil }
 
-func (r *MutexContention) evaluate(id trace.GoID, duration, timestamp time.Duration) []findings.Finding {
+func (r *MutexContention) evaluate(id trace.GoID, duration, timestamp time.Duration, stack []string) []findings.Finding {
 	var sev findings.Severity
 	var threshold time.Duration
 
@@ -120,5 +121,6 @@ func (r *MutexContention) evaluate(id trace.GoID, duration, timestamp time.Durat
 		Suggestion:  "Check if the mutex holder is doing slow work (I/O, DB calls) while holding the lock. Consider narrowing the critical section, sharding the mutex, or using sync.RWMutex for read-heavy workloads.",
 		Timestamp:   timestamp,
 		GoroutineID: uint64(id),
+		Stack:       stack,
 	}}
 }

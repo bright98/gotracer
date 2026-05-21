@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -46,8 +47,47 @@ func printHuman(w io.Writer, fs []findings.Finding) error {
 			f.Timestamp.Round(time.Millisecond),
 			f.Message,
 		)
+		if frame := topUserFrame(f.Stack); frame != "" {
+			fmt.Fprintf(tw, "\t\t\t  at %s\n", frame)
+		}
 	}
 	return tw.Flush()
+}
+
+// topUserFrame returns the first stack frame that belongs to user code
+// (not the Go runtime or standard library). Returns "" when no such frame exists.
+func topUserFrame(stack []string) string {
+	for _, entry := range stack {
+		// Each entry is "funcName\n\tfile:line".
+		// Take only the first line (function name).
+		funcName := strings.SplitN(entry, "\n", 2)[0]
+		if isUserFrame(funcName) {
+			fileLine := ""
+			if parts := strings.SplitN(entry, "\n\t", 2); len(parts) == 2 {
+				fileLine = parts[1]
+			}
+			if fileLine != "" {
+				return funcName + " (" + fileLine + ")"
+			}
+			return funcName
+		}
+	}
+	return ""
+}
+
+// isUserFrame reports whether a function name belongs to user code rather than
+// the Go runtime or standard library.
+func isUserFrame(funcName string) bool {
+	runtimePrefixes := []string{
+		"runtime.", "runtime/", "sync.", "syscall.", "os.", "io.",
+		"internal/", "reflect.", "encoding/", "fmt.", "net/",
+	}
+	for _, pfx := range runtimePrefixes {
+		if strings.HasPrefix(funcName, pfx) {
+			return false
+		}
+	}
+	return funcName != ""
 }
 
 func printJSON(w io.Writer, fs []findings.Finding) error {
