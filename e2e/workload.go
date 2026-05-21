@@ -135,6 +135,8 @@ func workloadSchedulerStress(ctx context.Context) {
 // workloadSyscallLoad calls f.Sync() (fsync) in a loop. fsync flushes dirty
 // pages to physical disk and typically takes 3–10 ms on SSD — long enough to
 // hold an OS thread and produce a genuine GoSyscall event.
+// WriteAt overwrites offset 0 each time so the file stays at 64 KB; Write
+// would append and fill the disk.
 func workloadSyscallLoad(ctx context.Context) {
 	for i := 0; i < 8; i++ {
 		go func() {
@@ -151,8 +153,9 @@ func workloadSyscallLoad(ctx context.Context) {
 					return
 				default:
 				}
-				f.Write(payload)
+				f.WriteAt(payload, 0) // overwrite, not append — file stays 64 KB
 				f.Sync()
+				time.Sleep(50 * time.Millisecond)
 			}
 		}()
 	}
