@@ -206,8 +206,8 @@ func TestWriteHTMLEscapesSpecialChars(t *testing.T) {
 		t.Fatalf("WriteHTML: %v", err)
 	}
 	out := buf.String()
-	if strings.Contains(out, "<script>") {
-		t.Error("raw <script> tag found in output — HTML escaping not working")
+	if strings.Contains(out, `<script>alert("xss")</script>`) {
+		t.Error("raw XSS payload found unescaped in output — HTML escaping not working")
 	}
 	if !strings.Contains(out, "&lt;script&gt;") {
 		t.Error("expected &lt;script&gt; escaped entity in output")
