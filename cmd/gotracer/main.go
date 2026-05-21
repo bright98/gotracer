@@ -62,22 +62,24 @@ func allRules() []findings.Rule {
 
 func newAnalyzeCmd() *cobra.Command {
 	var format, output string
+	var top int
 
 	cmd := &cobra.Command{
 		Use:   "analyze <file>",
 		Short: "analyze a Go execution trace file and report findings",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runAnalyze(args[0], report.Format(format), output)
+			runAnalyze(args[0], report.Format(format), output, top)
 			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&format, "format", "f", "human", "output format: human, json, or html")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "output file (default: stdout for human/json, gotracer_<timestamp>.html for html)")
+	cmd.Flags().IntVar(&top, "top", 0, "show only the worst N findings per rule (0 = no limit)")
 	return cmd
 }
 
-func runAnalyze(path string, format report.Format, output string) {
+func runAnalyze(path string, format report.Format, output string, top int) {
 	f, err := os.Open(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gotracer: %v\n", err)
@@ -93,6 +95,7 @@ func runAnalyze(path string, format report.Format, output string) {
 		os.Exit(2)
 	}
 	fs = findings.Deduplicate(fs)
+	fs = findings.TopN(fs, top)
 
 	if format == report.FormatHTML {
 		if output == "" {
@@ -143,13 +146,14 @@ func newCaptureCmd() *cobra.Command {
 		duration time.Duration
 		format   string
 		output   string
+		top      int
 	)
 
 	cmd := &cobra.Command{
 		Use:   "capture",
 		Short: "capture a trace from a live service and report findings",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runCapture(rawURL, duration, report.Format(format), output)
+			runCapture(rawURL, duration, report.Format(format), output, top)
 			return nil
 		},
 	}
@@ -157,11 +161,12 @@ func newCaptureCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&duration, "duration", 5*time.Second, "trace capture duration")
 	cmd.Flags().StringVarP(&format, "format", "f", "html", "output format: html or json")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "output file (default: gotracer_<timestamp>.<ext>)")
+	cmd.Flags().IntVar(&top, "top", 0, "show only the worst N findings per rule (0 = no limit)")
 	_ = cmd.MarkFlagRequired("url")
 	return cmd
 }
 
-func runCapture(rawURL string, duration time.Duration, format report.Format, output string) {
+func runCapture(rawURL string, duration time.Duration, format report.Format, output string, top int) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -183,6 +188,7 @@ func runCapture(rawURL string, duration time.Duration, format report.Format, out
 		os.Exit(2)
 	}
 	fs = findings.Deduplicate(fs)
+	fs = findings.TopN(fs, top)
 
 	if output == "" {
 		ext := "html"
