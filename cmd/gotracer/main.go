@@ -32,7 +32,14 @@ func main() {
 	}
 }
 
+// version is set at build time via -ldflags "-X main.version=vX.Y.Z".
+// Falls back to the module version embedded by go install, then "dev".
+var version string
+
 func buildVersion() string {
+	if version != "" {
+		return version
+	}
 	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
 		return info.Main.Version
 	}
