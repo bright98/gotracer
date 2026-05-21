@@ -124,6 +124,19 @@ trace.Stop()
 go test -trace trace.out ./...
 ```
 
+## Sample output
+
+[`examples/`](examples/) contains sample output generated from a live trace with synthetic workloads:
+
+- [`e2e_findings.json`](examples/e2e_findings.json) — JSON output (`--format json`)
+- [`e2e_report.html`](examples/e2e_report.html) — HTML report (`--format html`)
+
+To regenerate them from a fresh trace:
+
+```bash
+go run ./e2e
+```
+
 ## Rule documentation
 
 Detailed explanations of each rule — what the runtime concept is, how the rule works, thresholds, and what to do when you see a finding — live in [`docs/rules/`](docs/rules/).
