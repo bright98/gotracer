@@ -94,13 +94,13 @@ Exit code 1 makes CI gates straightforward:
 
 | Rule | Detects | Default thresholds |
 |------|---------|-------------------|
-| `GCPauseSpike` | Stop-the-world GC pauses longer than expected | Warn 5ms · Error 20ms |
-| `HighSchedulingLatency` | Goroutines waiting too long in the run queue | Warn 1ms · Error 10ms |
-| `BlockedOnSyscall` | Goroutines stuck in a syscall for too long | Warn 10ms · Error 100ms |
-| `MutexContention` | Long waits on sync.Mutex / RWMutex / WaitGroup | Warn 1ms · Error 10ms |
-| `GoroutineLeakGrowth` | Net goroutine count growing across the trace window | Warn +100 or 25% · Error +500 or 100% |
-| `HeapGrowthSpike` | Heap growing too fast (absolute or rate) | Warn 100 MB or 50 MB/s · Error 500 MB or 200 MB/s |
-| `ProcessorStarvation` | Processors (Ps) sitting idle while work exists | Warn 10ms · Error 100ms |
+| [`GCPauseSpike`](docs/rules/GCPauseSpike.md) | Stop-the-world GC pauses longer than expected | Warn 5ms · Error 20ms |
+| [`HighSchedulingLatency`](docs/rules/HighSchedulingLatency.md) | Goroutines waiting too long in the run queue | Warn 1ms · Error 10ms |
+| [`BlockedOnSyscall`](docs/rules/BlockedOnSyscall.md) | Goroutines stuck in a syscall for too long | Warn 10ms · Error 100ms |
+| [`MutexContention`](docs/rules/MutexContention.md) | Long waits on sync.Mutex / RWMutex / WaitGroup | Warn 1ms · Error 10ms |
+| [`GoroutineLeakGrowth`](docs/rules/GoroutineLeakGrowth.md) | Net goroutine count growing across the trace window | Warn +100 or 25% · Error +500 or 100% |
+| [`HeapGrowthSpike`](docs/rules/HeapGrowthSpike.md) | Heap growing too fast (absolute or rate) | Warn 100 MB or 50 MB/s · Error 500 MB or 200 MB/s |
+| [`ProcessorStarvation`](docs/rules/ProcessorStarvation.md) | Processors (Ps) sitting idle while work exists | Warn 10ms · Error 100ms |
 
 Each rule's thresholds are configurable when using gotracer as a library.
 
@@ -137,6 +137,4 @@ To regenerate them from a fresh trace:
 go run ./e2e
 ```
 
-## Rule documentation
-
-Detailed explanations of each rule — what the runtime concept is, how the rule works, thresholds, and what to do when you see a finding — live in [`docs/rules/`](docs/rules/).
+Each rule's doc covers the runtime concept behind it, how the rule works, and what to do when you see a finding.
