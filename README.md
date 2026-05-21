@@ -14,6 +14,16 @@ WARN      ProcessorStarvation    850ms      P 2 was idle for 12ms (threshold: 10
 WARN      HighSchedulingLatency  300ms      goroutine 42 waited 18ms to be scheduled
 ```
 
+## Report
+
+The HTML report (`--format html`) is self-contained with dark and light themes:
+
+| Dark | Light |
+|------|-------|
+| ![Dark report](docs/assets/report-dark.png) | ![Light report](docs/assets/report-light.png) |
+
+Each row is expandable — click to see detail, fix suggestion, goroutine ID, and stack trace.
+
 ## Install
 
 ```
