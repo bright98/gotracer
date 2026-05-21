@@ -32,7 +32,7 @@ gotracer version v0.1.0
 ### `analyze` — analyze a trace file
 
 ```
-gotracer analyze <file> [--format human|json|html] [--output <file>]
+gotracer analyze <file> [--format human|json|html] [--output <file>] [--top N]
 ```
 
 Reads a Go execution trace from disk, runs all rules, and prints findings to stdout.
@@ -51,12 +51,15 @@ gotracer analyze trace.out --format html
 
 # HTML report to a specific file, open immediately
 open $(gotracer analyze trace.out --format html --output report.html)
+
+# show only the 3 worst findings per rule (useful when one rule fires hundreds of times)
+gotracer analyze trace.out --top 3
 ```
 
 ### `capture` — capture and analyze in one step
 
 ```
-gotracer capture --url <pprof-url> [--duration 5s] [--format html|json] [--output report.html]
+gotracer capture --url <pprof-url> [--duration 5s] [--format html|json] [--output report.html] [--top N]
 ```
 
 Connects to a live service's `/debug/pprof/trace` endpoint, captures a trace for the requested duration, runs all rules, and writes a report.
