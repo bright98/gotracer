@@ -100,7 +100,7 @@ func demoRules() []findings.Rule {
 	// default 1ms warn is sufficient with GOMAXPROCS×8 competing goroutines
 
 	block := rules.NewBlockedOnSyscall()
-	block.WarnThreshold = 1 * time.Microsecond // file writes are fast on SSD; catch any syscall
+	block.WarnThreshold = 2 * time.Millisecond // fsync takes 1–10ms on SSD; meaningful threshold
 
 	mutex := rules.NewMutexContention()
 	// default 1ms warn fires easily: 20 goroutines fighting a 5ms-held lock

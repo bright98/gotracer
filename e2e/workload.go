@@ -113,11 +113,12 @@ func workloadSchedulerStress() {
 	}
 }
 
-// workloadSyscallLoad runs goroutines that make repeated blocking file-write
-// syscalls. Regular file I/O goes through entersyscall/exitsyscall, which the
-// runtime records as GoSyscall state transitions.
+// workloadSyscallLoad calls f.Sync() (fsync) in a tight loop. fsync flushes
+// dirty pages to physical disk and typically takes 1–10 ms on SSD — long
+// enough to hold an OS thread and show up as a genuine GoSyscall event.
+// Simple file writes complete in microseconds and are too fast to be meaningful.
 func workloadSyscallLoad() {
-	for i := 0; i < 12; i++ {
+	for i := 0; i < 8; i++ {
 		go func() {
 			f, err := os.CreateTemp("", "gotracer-e2e-*")
 			if err != nil {
@@ -125,10 +126,10 @@ func workloadSyscallLoad() {
 			}
 			defer os.Remove(f.Name())
 			defer f.Close()
-			payload := make([]byte, 32*1024) // 32 KB per write
+			payload := make([]byte, 64*1024) // 64 KB written before each sync
 			for {
-				f.WriteAt(payload, 0)
-				time.Sleep(8 * time.Millisecond)
+				f.Write(payload)
+				f.Sync() // blocks the OS thread until pages are flushed to disk
 			}
 		}()
 	}
