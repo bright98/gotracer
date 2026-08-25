@@ -152,3 +152,14 @@ go run ./e2e
 ```
 
 Each rule's doc covers the runtime concept behind it, how the rule works, and what to do when you see a finding.
+
+## The repository, as a farm
+
+Drawn by [git-farm](https://github.com/bright98/git-farm) on every push. One
+field per directory, one plant per file: a fenced field has tests and a broken
+fence has none, a weed is a file many people have changed many times, and a
+bent grey plant has not been touched in a year. The figure is whoever committed
+last, standing in the directory they committed to.
+
+<img alt="gotracer drawn as a farm: a field per directory, planted with one mark per file"
+     src="https://raw.githubusercontent.com/bright98/gotracer/farm/farm.svg">

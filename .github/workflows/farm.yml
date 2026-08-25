@@ -1,0 +1,52 @@
+name: farm
+
+on:
+  push:
+    branches: [main] # never the farm branch, or it triggers itself forever
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write # the only permission it needs, and only to push the farm branch
+
+jobs:
+  grow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # git-farm reads the whole history and refuses a shallow clone
+
+      # Pinned to a commit, not a tag: a tag can be moved and a SHA cannot, and
+      # this runs on the repository with contents: write. This one is v0.2.0.
+      - uses: bright98/git-farm@015fe162b072416f095d9c40dabc9b10cecafd3c
+        id: farm
+        with:
+          out: farm.svg
+          theme: full # the painted one: its own sky, soil and wooden fences
+          since: 5y
+          night: auto # stars and a lit lantern when the last commit was after midnight
+
+      # An orphan branch, force-pushed: always exactly one commit holding the
+      # picture and nothing else, so main's history never fills with "update
+      # farm" and the repository does not grow a picture at a time.
+      - name: publish
+        env:
+          SVG: ${{ steps.farm.outputs.svg }}
+          DARK: ${{ steps.farm.outputs.dark-svg }}
+        run: |
+          set -euo pipefail
+
+          files=("$SVG")
+          if [ -n "$DARK" ]; then
+            files+=("$DARK")
+          fi
+
+          git config user.name  "git-farm"
+          git config user.email "git-farm@users.noreply.github.com"
+          git checkout --orphan farm
+          git rm -rf --cached . > /dev/null
+          git add -f "${files[@]}"
+          git commit -m "farm $(date -u +%F)"
+          git push -f origin farm
